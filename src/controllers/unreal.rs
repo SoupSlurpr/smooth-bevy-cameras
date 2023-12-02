@@ -8,6 +8,8 @@ use bevy::{
         prelude::*,
     },
     math::prelude::*,
+    prelude::ReflectDefault,
+    reflect::Reflect,
     time::Time,
     transform::components::Transform,
 };
@@ -61,8 +63,9 @@ impl UnrealCameraBundle {
 }
 
 /// A camera controlled with the mouse in the same way as Unreal Engine's viewport controller.
-#[derive(Clone, Component, Copy, Debug)]
+#[derive(Clone, Component, Copy, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[reflect(Component, Default, Debug)]
 pub struct UnrealCameraController {
     /// Whether to process input or ignore it
     pub enabled: bool,
@@ -138,12 +141,12 @@ pub fn default_input_map(
     let middle_pressed = mouse_buttons.pressed(MouseButton::Middle);
 
     let mut cursor_delta = Vec2::ZERO;
-    for event in mouse_motion_events.iter() {
+    for event in mouse_motion_events.read() {
         cursor_delta += event.delta;
     }
 
     let mut wheel_delta = 0.0;
-    for event in mouse_wheel_reader.iter() {
+    for event in mouse_wheel_reader.read() {
         wheel_delta += event.x + event.y;
     }
 
@@ -245,7 +248,7 @@ pub fn control_system(
     let mut look_angles = LookAngles::from_vector(look_vector);
 
     let dt = time.delta_seconds();
-    for event in events.iter() {
+    for event in events.read() {
         match event {
             ControlEvent::Locomotion(delta) => {
                 // Translates forward/backward and rotates about the Y axis.
@@ -261,8 +264,9 @@ pub fn control_system(
                 let yaw_rot = Quat::from_axis_angle(Vec3::Y, look_angles.get_yaw());
                 let rot_x = yaw_rot * Vec3::X;
 
-                // Translates up/down (Y) and left/right (X).
-                transform.eye -= dt * delta.x * rot_x - Vec3::new(0.0, dt * delta.y, 0.0);
+                // Translates up/down and left/right (X).
+                let up = transform.up;
+                transform.eye -= dt * delta.x * rot_x - dt * delta.y * up;
             }
         }
     }
